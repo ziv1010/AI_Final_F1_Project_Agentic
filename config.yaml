@@ -1,0 +1,57 @@
+data:
+  raw_path: "data/raw"
+  cache_path: "data/cache"
+  outputs_path: "outputs"
+
+llm:
+  #model: "llama-3.3-70b-versatile"  # Rate limited but active
+  #model: "openai/gpt-oss-120b"  # Faster, less capable alternative
+  # model: "mixtral-8x7b-32768"    # Decommissioned
+  #model: "qwen/qwen3-32b"
+  model: "meta-llama/llama-4-scout-17b-16e-instruct"
+  temperature: 0.1
+
+# Token tracking settings (for free tier API usage)
+tokens:
+  # Maximum tokens allowed per session
+  # Groq free tier: ~6000 requests/day, but context-limited
+  # Adjust based on your API tier
+  limit: 50000
+
+  # Warning threshold (percentage of limit)
+  warning_threshold: 0.8
+
+  # Whether to abort on limit exceeded
+  abort_on_exceed: true
+
+# Analysis depth settings
+analysis:
+  # Default analysis depth: "basic", "deep", or "story"
+  default_depth: "basic"
+
+  # Enable OpenF1 API integration
+  enable_api: true
+
+  # OpenF1 API rate limiting (requests per second)
+  api_rate_limit: 2
+
+# OpenF1 API settings
+openf1:
+  base_url: "https://api.openf1.org/v1"
+
+  # Data available from 2023 onwards for most endpoints
+  min_year: 2023
+
+  # Request timeout in seconds
+  timeout: 30
+
+  # Max retries on failure
+  max_retries: 3
+
+# Interactive mode settings
+interactive:
+  # Enable interactive prompts for deep analysis
+  enabled: true
+
+  # Timeout for user input (seconds, 0 = no timeout)
+  input_timeout: 0

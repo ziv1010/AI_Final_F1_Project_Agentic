@@ -1,0 +1,42 @@
+Loading parquet files...
+Filtering data for raceId=1121...
+Merging results with drivers and constructors...
+Filtering to drivers: ['Verstappen', 'Hamilton']
+Converting time columns to seconds...
+Computing race-level metrics...
+   driverId          driver constructor  total_time_sec  avg_lap_sec  lap_std_sec  pit_count  avg_pit_sec  position_change  points
+0       830  Max Verstappen    Red Bull        5504.742    96.574421     4.158272          2      24.6365                0    26.0
+1         1  Lewis Hamilton    Mercedes        5555.066    97.457298     4.049597          2      24.5905               -2     6.0
+Analyzing stints...
+   driverId  stint  stint_laps  avg_lap_time   lap_std
+0         1      1          12     98.865417  1.553483
+1         1      2          21     98.055952  4.765187
+2         1      3          24     96.229417  4.011757
+3       830      1          17     97.162294  0.743079
+4       830      2          20     96.876350  5.015311
+5       830      3          20     95.772800  4.925820
+Computing pace delta between drivers...
+   lap  pace_delta_sec
+0    1          -5.838
+1    2          -1.977
+2    3          -1.550
+3    4          -1.640
+4    5          -1.177
+Generating visualizations...
+Saving metrics to parquet...
+Identifying race winner...
+Winner: Max Verstappen driving for Red Bull with 26.0 points.
+
+Key performance indicators for the winner:
+  Total race time: 5504.74 s
+  Average lap time: 96.574 s
+  Lap time variability: 4.158 s
+  Number of pit stops: 2
+  Average pit duration: 24.64 s
+  Position change from grid: 0 places
+
+Analysis Summary:
+- The winner had the fastest total race time and the lowest average lap time.
+- Their lap time variability was lower, indicating consistent performance.
+- Pit stop strategy was efficient with a short average duration.
+- The combination of speed, consistency, and pit strategy led to the victory.

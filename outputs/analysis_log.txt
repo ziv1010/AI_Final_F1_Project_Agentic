@@ -1,0 +1,7 @@
+Race Full Shape: (2, 33)
+Lap Driver Shape: (114, 15)
+Pits Shape: (4, 7)
+Winner: Verstappen
+Winner's Lap Time: 92.608
+Winner's Pit Stops: 2
+Winner's Total Pit Time: 49273

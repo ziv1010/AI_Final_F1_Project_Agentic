@@ -1,0 +1,23 @@
+# Local environment variables
+.env
+
+# Python virtual environment
+f1env/
+f1env_new/
+
+# Data
+data/
+
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# System and IDE
+.DS_Store
+.claude/
+.idea/
+.vscode/
+
+# Python Cache
+__pycache__/
+*.pyc

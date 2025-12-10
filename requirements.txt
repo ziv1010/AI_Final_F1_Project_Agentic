@@ -1,0 +1,15 @@
+langgraph
+langchain-core
+langchain-community
+langchain-groq
+pydantic
+pandas
+numpy
+matplotlib
+seaborn
+fastf1
+tabulate
+pyyaml
+pyarrow
+requests
+python-dotenv

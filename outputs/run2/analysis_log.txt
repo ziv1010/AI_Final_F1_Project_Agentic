@@ -1,0 +1,39 @@
+Loading data...
+Filtering data for raceId = 1121
+Joining results with driver and constructor info...
+Analyzing teams: ['Red Bull', 'Ferrari', 'Mercedes', 'McLaren', 'Aston Martin', 'Sauber', 'Haas F1 Team', 'RB F1 Team', 'Williams', 'Alpine F1 Team']
+Merging lap data with driver/team info...
+Deriving stint identifiers...
+Calculating cumulative race times...
+Comparing drivers with IDs: [830, 815]
+Calculating metrics...
+Saving metrics to outputs/analysis_metrics.parquet
+Saved lap time plot to outputs/visualizations/lap_time_evolution.png
+Saved position plot to outputs/visualizations/position_over_laps.png
+Saved stint boxplot to outputs/visualizations/stint_boxplot.png
+Saved gap chart to outputs/visualizations/cumulative_gap.png
+Saved pit time bar chart to outputs/visualizations/pit_time_bar.png
+
+=== Race Winner ===
+Winner: Max Verstappen (Red Bull)
+Points earned: 26.0
+
+=== Narrative Summary ===
+The gap analysis shows that Max Verstappen held the overall time advantage by the end of the race (22.46s).
+Key observations:
+- Average lap times and stint degradation slopes are captured in the metrics file.
+- Pit‑stop timing and total pit loss are visualised; the driver with fewer/shorter stops gained a positional edge.
+- Position chart reveals overtakes and the impact of pit strategies.
+- The winner's superior pace and/or more efficient pit strategy is reflected in the lower cumulative time.
+
+
+[stderr]
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:222: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+<string>:222: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+<string>:376: UserWarning: Glyph 8209 (\N{NON-BREAKING HYPHEN}) missing from font(s) Arial.

@@ -1,0 +1,4 @@
+      driver1   driver2  delta
+0  Verstappen  Hamilton -2.114
+The winner is Verstappen
+Verstappen won because they had the fastest lap time of 92.608 seconds and finished in position 1.

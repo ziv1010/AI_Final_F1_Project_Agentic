@@ -1,0 +1,51 @@
+Loading parquet files...
+Cleaning dataframes...
+Converting time columns to seconds...
+Filtering data for race ID 1141...
+Joining results with driver and constructor information...
+Filtering to focus teams: ['Red Bull', 'Mercedes', 'Ferrari', 'McLaren']
+Enriching lap and pit data with driver/team information...
+Computing team‑level metrics...
+Identifying race winner...
+🏁 Race Winner: Max Verstappen (Red Bull)
+Saving metrics to outputs/analysis_metrics.parquet...
+Saved plot: outputs/visualizations/total_points.png
+Saved plot: outputs/visualizations/mean_finish_position.png
+Saved plot: outputs/visualizations/lap_time_distribution.png
+Saved plot: outputs/visualizations/cumulative_avg_lap_time.png
+Saved plot: outputs/visualizations/pit_stop_summary.png
+Saved plot: outputs/visualizations/grid_vs_finish.png
+
+=== Team Performance Metrics ===
+team_name  total_points  mean_finish_position  fastest_lap_seconds  top5_finishers  avg_lap_time_seconds  std_lap_time_seconds  total_pit_stops  avg_pit_duration_seconds  mean_position_change
+  Ferrari          10.0                  10.5               81.631               1            117.652393            196.746133                4                723.853000                   7.5
+  McLaren          12.0                   7.0               81.517               0            110.834601            175.013125                4                721.611750                   2.5
+ Mercedes          13.0                   7.0               81.645               1            110.890420            174.369141                4                723.111000                  -1.0
+ Red Bull          26.0                   6.0               80.472               1            110.727471            174.377995                3                953.736667                  -8.5
+
+Analysis complete.
+
+
+[stderr]
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:86: FutureWarning: errors='ignore' is deprecated and will raise in a future version. Use to_numeric without passing `errors` and catch exceptions explicitly instead
+<string>:269: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+<string>:281: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+<string>:293: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+
+<string>:321: FutureWarning: 
+
+Passing `palette` without assigning `hue` is deprecated and will be removed in v0.14.0. Assign the `x` variable to `hue` and set `legend=False` for the same effect.
+

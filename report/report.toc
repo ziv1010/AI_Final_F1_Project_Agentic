@@ -1,0 +1,38 @@
+\contentsline {section}{\numberline {1}Overall Idea}{3}{section.1}%
+\contentsline {section}{\numberline {2}Sample Queries}{3}{section.2}%
+\contentsline {section}{\numberline {3}Datasets and Data Coverage}{4}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Core Dataset: Formula 1 World Championship (1950--2024)}{4}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Optional Telemetry and Extended Data}{4}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Exploratory Data Analysis}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Dataset Overview}{5}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Temporal Coverage}{5}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Data Completeness and Coverage}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}Implications for Analysis}{6}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Pipeline Diagram}{7}{section.5}%
+\contentsline {section}{\numberline {6}Agentic AI Workflow}{9}{section.6}%
+\contentsline {section}{\numberline {7}Intelligent Factor Analysis}{12}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Factor-Driven Query Understanding}{13}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Factor Analysis Workflow}{13}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}Example: Intelligent Factor Detection}{13}{subsection.7.3}%
+\contentsline {section}{\numberline {8}Deep Mode Implementation}{14}{section.8}%
+\contentsline {subsection}{\numberline {8.1}OpenF1 API Integration}{14}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}FastF1 Library Integration}{15}{subsection.8.2}%
+\contentsline {section}{\numberline {9}System Guardrails}{15}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Sustainability Guardrails}{15}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Correctness Guardrails}{15}{subsection.9.2}%
+\contentsline {section}{\numberline {10}Implementation Challenges}{16}{section.10}%
+\contentsline {subsection}{\numberline {10.1}Data Integration and Entity Resolution}{16}{subsection.10.1}%
+\contentsline {subsection}{\numberline {10.2}LLM Context Management}{16}{subsection.10.2}%
+\contentsline {subsection}{\numberline {10.3}API Rate Limiting}{16}{subsection.10.3}%
+\contentsline {section}{\numberline {11}Case Study: 2024 Bahrain GP Analysis}{16}{section.11}%
+\contentsline {subsection}{\numberline {11.1}Stage 1: Basic Analysis (Kaggle Data)}{16}{subsection.11.1}%
+\contentsline {subsection}{\numberline {11.2}Stage 2: Deep Enrichment (OpenF1 \& FastF1)}{17}{subsection.11.2}%
+\contentsline {section}{\numberline {12}Technology Stack and Implementation}{17}{section.12}%
+\contentsline {subsection}{\numberline {12.1}Key Implementation Features}{17}{subsection.12.1}%
+\contentsline {section}{\numberline {13}Results and Evaluation}{18}{section.13}%
+\contentsline {subsection}{\numberline {13.1}Query Coverage and Accuracy}{18}{subsection.13.1}%
+\contentsline {subsection}{\numberline {13.2}Performance Metrics}{18}{subsection.13.2}%
+\contentsline {subsection}{\numberline {13.3}Error Recovery and Self-Healing}{19}{subsection.13.3}%
+\contentsline {subsection}{\numberline {13.4}Current Limitations}{19}{subsection.13.4}%
+\contentsline {subsection}{\numberline {13.5}Planned Enhancements}{19}{subsection.13.5}%
+\contentsline {section}{\numberline {14}Conclusion}{20}{section.14}%
