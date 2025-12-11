@@ -1,15 +1,35 @@
-langgraph
-langchain-core
-langchain-community
-langchain-groq
-pydantic
-pandas
-numpy
-matplotlib
-seaborn
-fastf1
-tabulate
-pyyaml
-pyarrow
-requests
-python-dotenv
+# Universal Racing Strategy Analyst - Dependencies
+
+# Core LangGraph/LangChain
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-groq>=0.2.0
+
+# Data Processing
+pydantic>=2.0.0
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Racing Data APIs
+fastf1>=3.0.0
+requests>=2.31.0
+
+# Statistical Analysis (for propensity guardrail)
+scipy>=1.11.0
+scikit-learn>=1.3.0
+statsmodels>=0.14.0
+
+# Web Search
+duckduckgo-search>=5.0.0
+wikipedia>=1.4.0
+
+# Utilities
+tabulate>=0.9.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
