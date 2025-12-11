@@ -1,7 +1,7 @@
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
-from src.config import CONFIG, get_outputs_path
+from src.config import CONFIG, get_outputs_path, get_run_output_path
 
 def report_generator(state: WeekendState):
     """
@@ -25,6 +25,20 @@ def report_generator(state: WeekendState):
         else:
             failure_report += "No analysis output was produced. Please check the logs.\n"
 
+        # Save to run-specific directory
+        run_path = get_run_output_path()
+        run_report_path = run_path / "race_report.md"
+        with open(run_report_path, "w") as f:
+            f.write(failure_report)
+
+        run_log_path = run_path / "analysis_log.txt"
+        with open(run_log_path, "w") as f:
+            f.write(stdout)
+            if stderr:
+                f.write("\n\n[stderr]\n")
+                f.write(stderr)
+        
+        # Also save to main outputs for backwards compatibility
         outputs_path = get_outputs_path()
         report_path = outputs_path / "race_report.md"
         with open(report_path, "w") as f:
@@ -91,18 +105,33 @@ Guidelines:
     report = response.content
     print(f"=== [Report Generator] Report Generated ({len(report)} chars) ===\n")
     
-    # Save report
+    # Save report to run-specific directory
+    run_path = get_run_output_path()
+    run_report_path = run_path / "race_report.md"
+    with open(run_report_path, "w") as f:
+        f.write(report)
+        
+    # Save analysis log to run-specific directory
+    run_log_path = run_path / "analysis_log.txt"
+    with open(run_log_path, "w") as f:
+        f.write(stdout)
+        if stderr:
+            f.write("\n\n[stderr]\n")
+            f.write(stderr)
+    
+    # Also save to main outputs for backwards compatibility
     outputs_path = get_outputs_path()
     report_path = outputs_path / "race_report.md"
     with open(report_path, "w") as f:
         f.write(report)
         
-    # Save analysis log
     log_path = outputs_path / "analysis_log.txt"
     with open(log_path, "w") as f:
         f.write(stdout)
         if stderr:
             f.write("\n\n[stderr]\n")
             f.write(stderr)
+    
+    print(f"[Report Generator] Reports saved to run: {run_path}")
         
     return {"analysis_outputs": {**state["analysis_outputs"], "report": report, "report_path": str(report_path), "log_path": str(log_path)}}

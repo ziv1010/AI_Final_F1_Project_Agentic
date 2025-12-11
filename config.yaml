@@ -1,7 +1,7 @@
 data:
   raw_path: "data/raw"
   cache_path: "data/cache"
-  outputs_path: "outputs"
+  outputs_path: "output_updated"
 
 llm:
   #model: "llama-3.3-70b-versatile"  # Rate limited but active

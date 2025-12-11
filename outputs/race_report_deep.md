@@ -1,113 +1,83 @@
-## 2024 Bahrain GP Performance Comparison: Verstappen vs. Hamilton
+## Comparison of Verstappen and Hamilton at the 2023 Bahrain GP
 
-### Race Outcome
-- **Winner:** Verstappen
-- **Winner's Lap Time:** 92.608
-- **Winner's Pit Stops:** 2
-- **Winner's Total Pit Time:** 49273
+### Analysis Overview
 
-### Data Limitations
-- Detailed performance metrics for Hamilton (e.g., lap time, pit stops, total pit time) are not provided in the Analysis Output.
-- Specific comparisons of performance metrics (e.g., lap times, pit stop strategies) between Verstappen and Hamilton are not available.
+The analysis output provided does not contain explicit data comparing Verstappen and Hamilton at the 2023 Bahrain GP. However, various visualizations and data points are mentioned.
 
-### Available Data
-- **Race Full Shape:** (2, 33)
-- **Lap Driver Shape:** (114, 15)
-- **Pits Shape:** (4, 7)
+### Key Findings
+
+* Multiple visualizations were generated, including:
+	+ Tire degradation curves
+	+ Strategy timeline
+	+ Stint laptime distribution
+	+ Lap time evolution
+	+ Weather evolution
+	+ Telemetry comparison
+	+ Pace delta heatmap
+	+ Lap time heatmap
+	+ Pit stop timeline
+* No explicit performance metrics or results are provided for Verstappen and Hamilton.
+
+### Limitations
+
+* The analysis output does not provide direct comparisons or results for Verstappen and Hamilton at the 2023 Bahrain GP.
+* Data not available for a detailed comparison.
 
 ### Conclusion
-Based on the provided data, Verstappen won the 2024 Bahrain GP. Key performance details for Verstappen include a lap time of 92.608, 2 pit stops, and a total pit time of 49273. Direct comparison of Verstappen's and Hamilton's performance is limited by the lack of detailed data for Hamilton in the Analysis Output.
+
+The provided analysis output does not contain sufficient information to make a direct comparison between Verstappen and Hamilton at the 2023 Bahrain GP. Further data is required to provide a comprehensive analysis.
 
 ---
 
 ## Deep Analysis Addendum
 
-## Session: Race - Bahrain 2024
-Circuit: Sakhir
-Date: 2024-03-02T15:00:00+00:00
+# FastF1 Analysis: Bahrain Grand Prix
+Location: Sakhir
+Date: 2023-03-05 00:00:00
+Total Laps: 57
 
 ## Weather Conditions
-- Air Temperature: 17.6C - 18.9C
-- Track Temperature: 21.9C - 26.5C
-- Humidity: 46% - 51%
+- Air Temperature: 26.2°C - 29.8°C
+- Track Temperature: 28.7°C - 35.1°C
+- Humidity: 18% - 28%
 - Rainfall: No
 
-## Race Control Events
-- GREEN: GREEN LIGHT - PIT EXIT OPEN
-- GREEN: GREEN LIGHT - PIT EXIT OPEN
-- DOUBLE YELLOW: DOUBLE YELLOW IN TRACK SECTOR 2
-- CLEAR: CLEAR IN TRACK SECTOR 2
-- DOUBLE YELLOW: DOUBLE YELLOW IN TRACK SECTOR 2
-- CLEAR: CLEAR IN TRACK SECTOR 2
-- CLEAR: CLEAR IN TRACK SECTOR 4
-- YELLOW: YELLOW IN TRACK SECTOR 4
-- CLEAR: CLEAR IN TRACK SECTOR 4
-- BLUE: WAVED BLUE FLAG FOR CAR 2 (SAR) TIMED AT 18:21:59
+## Tire Strategies
+- **VER**: SOFT(36.0L) → HARD(21.0L)
+- **HAM**: SOFT(12.0L) → HARD(45.0L)
 
-## Tire Strategy Summary
-- Driver 1: SOFT -> HARD -> SOFT
-- Driver 3: SOFT -> HARD -> SOFT
-- Driver 14: SOFT -> HARD -> HARD
-- Driver 10: SOFT -> HARD -> HARD -> SOFT
-- Driver 81: SOFT -> HARD -> HARD
+## Tire Degradation Analysis
+### VER
+- Stint 1: SOFT (33 laps, deg: -0.026s/lap)
+- Stint 2: HARD (20 laps, deg: -0.287s/lap)
+### HAM
+- Stint 1: SOFT (11 laps, deg: 0.024s/lap)
+- Stint 2: HARD (42 laps, deg: 0.002s/lap)
 
-## Pit Stop Summary
-- Driver 27: 3 stops, avg 28.5s
-- Driver 24: 2 stops, avg 25.1s
-- Driver 18: 2 stops, avg 24.4s
-- Driver 31: 2 stops, avg 25.0s
-- Driver 2: 3 stops, avg 28.7s
-
-## Drivers in Session
-- #1 Max VERSTAPPEN (Red Bull Racing)
-- #2 Logan SARGEANT (Williams)
-- #3 Daniel RICCIARDO (RB)
-- #4 Lando NORRIS (McLaren)
-- #10 Pierre GASLY (Alpine)
-- #11 Sergio PEREZ (Red Bull Racing)
-- #14 Fernando ALONSO (Aston Martin)
-- #16 Charles LECLERC (Ferrari)
-- #18 Lance STROLL (Aston Martin)
-- #20 Kevin MAGNUSSEN (Haas F1 Team)
-
-## Team Radio Communications
-- Total radio messages captured: 13
-- Drivers with radio: [1, 44]
-- Radio data available for strategy and decision analysis
+## Telemetry Data Available
+Detailed telemetry captured for: VER, HAM
 
 
 ## Additional Insights
-Based on the provided API data, here are the key insights:
+Based on the provided data, here are the key insights:
 
-**Weather Conditions:**
-- Air temperature ranged from 17.6°C to 18.9°C.
-- Track temperature ranged from 21.9°C to 26.5°C.
-- Humidity ranged from 46% to 51%.
-- There was no rainfall during the race.
+**Lap Time Analysis and Pace Comparisons:**
+- Data not available for direct lap time comparisons.
 
-**Tire Strategy Patterns:**
-- The tire strategy for some drivers is as follows:
-  - Driver 1 (Max Verstappen): SOFT -> HARD -> SOFT
-  - Driver 3 (Daniel Ricciardo): SOFT -> HARD -> SOFT
-  - Driver 14 (Fernando Alonso): SOFT -> HARD -> HARD
-  - Driver 10 (Pierre Gasly): SOFT -> HARD -> HARD -> SOFT
-  - Driver 81: SOFT -> HARD -> HARD (Driver 81's name is not provided)
+**Tire Strategy Patterns (compounds used):**
+- Verstappen (VER) used SOFT tires for 36 laps and then switched to HARD tires for 21 laps.
+- Hamilton (HAM) used SOFT tires for 12 laps and then switched to HARD tires for 45 laps.
 
-**Race Incidents and Flags:**
-- There were several incidents and flags:
-  - Double yellow flags in Track Sector 2 (twice) and a yellow flag in Track Sector 4.
-  - A blue flag was waved for Car 2 (Logan Sargeant) at 18:21:59.
+**Tire Degradation Analysis:**
+- VER's SOFT tire degradation: -0.026s/lap over 33 laps.
+- VER's HARD tire degradation: -0.287s/lap over 20 laps.
+- HAM's SOFT tire degradation: 0.024s/lap over 11 laps.
+- HAM's HARD tire degradation: 0.002s/lap over 42 laps.
 
-**Pit Stop Information:**
-- Some drivers' pit stop information:
-  - Driver 27: 3 stops, average time 28.5 seconds.
-  - Driver 24: 2 stops, average time 25.1 seconds.
-  - Driver 18 (Lance Stroll): 2 stops, average time 24.4 seconds.
-  - Driver 31: 2 stops, average time 25.0 seconds.
-  - Driver 2 (Logan Sargeant): 3 stops, average time 28.7 seconds.
+**Sector Performance Comparisons:**
+- Data not available.
 
-**Performance Comparison of Verstappen and Hamilton:**
-- Driver #1 Max Verstappen (Red Bull Racing) won the race.
-- Driver #44 is not mentioned in the "Drivers in Session" list; therefore, Hamilton's performance data is not available for direct comparison.
+**Speed Trap Data:**
+- Data not available.
 
-Given that Lewis Hamilton's data is not present in the provided API data, a direct comparison between Verstappen and Hamilton cannot be made.
+These insights are directly derived from the provided data summary, focusing on tire strategies and degradation patterns for Verstappen and Hamilton during the 2023 Bahrain GP.

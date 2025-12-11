@@ -8,7 +8,7 @@ Saves visualizations to outputs/deep_analysis_visualizations/
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
-from src.config import CONFIG
+from src.config import CONFIG, get_run_vis_path
 from src.tools.token_tracker import track_llm_response, check_token_budget
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -79,9 +79,13 @@ def deep_visualizer(state: WeekendState) -> dict:
         print("[Deep Visualizer] No FastF1 data available, skipping")
         return {}
 
-    # Create deep analysis visualization directory
-    deep_vis_dir = Path("analysis_vis")
+    # Create deep analysis visualization directory (run-specific)
+    deep_vis_dir = get_run_vis_path()
     deep_vis_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Also create backwards-compatible directory
+    compat_vis_dir = Path("analysis_vis")
+    compat_vis_dir.mkdir(parents=True, exist_ok=True)
 
     visualizations = []
     drivers_focus = state.get("drivers_focus", [])

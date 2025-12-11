@@ -12,12 +12,13 @@ Works with any racing dataset (F1, MotoGP, etc.) without hardcoded logic.
 
 from langchain_groq import ChatGroq
 from langchain_classic.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
 from src.state import WeekendState
-from src.config import CONFIG
+from src.config import CONFIG, get_run_output_path
 from src.tools.token_tracker import track_llm_response, check_token_budget
 from src.tools.search_tools import search_dataset, get_schema_info, explore_dataset_columns
 from src.tools.code_execution_tools import run_python_code, save_visualization
+from datetime import datetime
 
 # Phase 2: Evaluation and error handling
 try:
@@ -27,17 +28,12 @@ try:
 except ImportError:
     PHASE2_ENABLED = False
 
-# EDA Agent prompt
-EDA_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert data analyst specializing in motorsport data.
+# EDA Agent prompt - using standard ReAct PromptTemplate format for langchain_classic
+EDA_PROMPT = PromptTemplate.from_template("""You are an expert data analyst specializing in motorsport data.
 Your job is to explore and understand racing datasets.
 
 You have access to these tools:
-1. **get_schema_info**: Get information about available tables and columns
-2. **search_dataset**: Search for specific data using natural language
-3. **explore_dataset_columns**: Find columns matching a pattern
-4. **run_python_code**: Execute Python code for analysis
-5. **save_visualization**: Create and save charts
+{tools}
 
 **IMPORTANT RULES:**
 - ALWAYS start by understanding what data is available using get_schema_info
@@ -51,10 +47,21 @@ You have access to these tools:
 
 **Analysis Depth:** {analysis_depth}
 
-When you have gathered enough information, provide a clear summary of your findings."""),
-    ("human", "{input}"),
-    ("placeholder", "{agent_scratchpad}")
-])
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: the final answer to the original input question
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}""")
 
 
 def eda_agent(state: WeekendState) -> dict:
@@ -107,6 +114,20 @@ def eda_agent(state: WeekendState) -> dict:
         temperature=0.1
     )
     
+    # Initialize log content
+    log_lines = []
+    log_lines.append("=" * 60)
+    log_lines.append("EDA AGENT LOG")
+    log_lines.append(f"Timestamp: {datetime.now().isoformat()}")
+    log_lines.append("=" * 60)
+    log_lines.append("")
+    log_lines.append("## User Query")
+    log_lines.append(state.get("user_query", ""))
+    log_lines.append("")
+    log_lines.append("## Schema Summary (truncated)")
+    log_lines.append(schema_summary[:1500])
+    log_lines.append("")
+    
     try:
         # Create ReAct agent
         agent = create_react_agent(llm, tools, EDA_PROMPT)
@@ -124,6 +145,10 @@ def eda_agent(state: WeekendState) -> dict:
         user_query = state.get("user_query", "")
         eda_query = _formulate_eda_query(user_query)
         
+        log_lines.append("## EDA Query")
+        log_lines.append(eda_query)
+        log_lines.append("")
+        
         # Run agent
         result = executor.invoke({
             "input": eda_query,
@@ -131,12 +156,32 @@ def eda_agent(state: WeekendState) -> dict:
             "analysis_depth": state.get("analysis_depth", "basic")
         })
         
-        # Track tokens (approximate)
-        track_llm_response(None, manual_count=2000)
-        
         # Extract results
         eda_results = result.get("output", "")
         intermediate_steps = result.get("intermediate_steps", [])
+        
+        # Log intermediate steps (agent actions and observations)
+        log_lines.append("## Agent Actions (Intermediate Steps)")
+        for step_num, step in enumerate(intermediate_steps, 1):
+            log_lines.append(f"### Step {step_num}")
+            if hasattr(step, '__iter__') and len(step) > 0:
+                action = step[0]
+                observation = step[1] if len(step) > 1 else ""
+                if hasattr(action, 'tool'):
+                    log_lines.append(f"**Tool:** {action.tool}")
+                    log_lines.append(f"**Input:** {action.tool_input}")
+                else:
+                    log_lines.append(f"**Action:** {str(action)[:500]}")
+                obs_str = str(observation)
+                log_lines.append(f"**Observation:** {obs_str[:1500]}..." if len(obs_str) > 1500 else f"**Observation:** {obs_str}")
+            else:
+                log_lines.append(f"**Step Data:** {str(step)[:500]}")
+            log_lines.append("")
+        
+        # Log final output
+        log_lines.append("## Final Output")
+        log_lines.append(eda_results)
+        log_lines.append("")
         
         # Extract any visualizations created
         visualizations = []
@@ -146,7 +191,24 @@ def eda_agent(state: WeekendState) -> dict:
                 if "saved:" in action_output.lower() or ".png" in action_output:
                     visualizations.append(action_output)
         
+        # Log summary
+        log_lines.append("## Summary")
+        log_lines.append(f"- Agent steps: {len(intermediate_steps)}")
+        log_lines.append(f"- Visualizations generated: {len(visualizations)}")
+        log_lines.append(f"- Output length: {len(eda_results)} chars")
+        
         print(f"[EDA Agent] Exploration complete. Generated {len(visualizations)} visualizations.")
+        
+        # Save log to run output directory
+        try:
+            run_output_path = get_run_output_path()
+            run_output_path.mkdir(parents=True, exist_ok=True)
+            log_path = run_output_path / "eda_agent_log.txt"
+            with open(log_path, "w") as f:
+                f.write("\n".join(log_lines))
+            print(f"[EDA Agent] Log saved to: {log_path}")
+        except Exception as log_error:
+            print(f"[EDA Agent] Could not save log: {log_error}")
         
         return {
             "eda_results": eda_results,
@@ -160,6 +222,19 @@ def eda_agent(state: WeekendState) -> dict:
         
     except Exception as e:
         print(f"[EDA Agent] Error: {e}")
+        log_lines.append("## ERROR")
+        log_lines.append(f"Agent error: {str(e)}")
+        
+        # Save log even on error
+        try:
+            run_output_path = get_run_output_path()
+            run_output_path.mkdir(parents=True, exist_ok=True)
+            log_path = run_output_path / "eda_agent_log.txt"
+            with open(log_path, "w") as f:
+                f.write("\n".join(log_lines))
+        except:
+            pass
+        
         return _basic_eda(state)
 
 

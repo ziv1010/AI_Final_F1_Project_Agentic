@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from src.graph import build_react_graph, get_graph_for_depth
-from src.config import CONFIG
+from src.config import CONFIG, start_new_run, get_current_run_id, get_run_output_path
 from src.tools.token_tracker import (
     set_token_limit,
     get_usage_summary,
@@ -187,12 +187,18 @@ def create_initial_state(query: str, depth: str, token_limit: int) -> dict:
 
 def run_analysis(query: str, depth: str, token_limit: int, streaming: bool = True):
     """Run the analysis pipeline."""
+    # Start a new run with unique ID
+    run_id = start_new_run(query)
+    run_output_path = get_run_output_path()
+    
     print(f"\n{'='*60}")
     print(f"🏎️  Universal Racing Strategy Analyst")
     print(f"{'='*60}")
+    print(f"Run ID: {run_id}")
     print(f"Query: {query}")
     print(f"Analysis Depth: {depth.upper()}")
     print(f"Token Limit: {token_limit:,}")
+    print(f"Output Directory: {run_output_path}")
     print(f"{'='*60}\n")
 
     # Set up token tracking

@@ -10,7 +10,7 @@ Creates a focused report that:
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
-from src.config import CONFIG
+from src.config import CONFIG, get_run_output_path
 from src.tools.token_tracker import track_llm_response, check_token_budget
 from pathlib import Path
 
@@ -184,15 +184,20 @@ Deep Visualizations Available:
 
         report_content = response.content
 
-        # Save deep analysis report
+        # Save deep analysis report to run-specific directory
+        run_dir = get_run_output_path()
+        run_deep_report_path = run_dir / "deep_analysis_summary.md"
+        with open(run_deep_report_path, 'w') as f:
+            f.write(report_content)
+
+        # Also save to main outputs for backwards compatibility
         output_dir = Path("outputs")
         output_dir.mkdir(parents=True, exist_ok=True)
         deep_report_path = output_dir / "deep_analysis_summary.md"
-
         with open(deep_report_path, 'w') as f:
             f.write(report_content)
 
-        print(f"[Deep Report Generator] Deep analysis report saved to {deep_report_path}")
+        print(f"[Deep Report Generator] Deep analysis report saved to run: {run_dir}")
 
         return {
             "analysis_outputs": {

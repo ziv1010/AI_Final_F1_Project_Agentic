@@ -231,10 +231,10 @@ IMPORTANT:
 - Do NOT invent or assume names
 
 Return ONLY valid JSON:
-{{
+{{{{
   "competitors_focus": ["Name1", "Name2"],
   "teams_focus": ["Team1", "Team2"]
-}}"""),
+}}}}"""),
         ("user", "{query}")
     ])
     

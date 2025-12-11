@@ -3,7 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
 from src.tools.analysis_tools import run_python
 from src.tools.data_tools import inspect_dataset
-from src.config import CONFIG
+from src.config import CONFIG, get_run_output_path, get_run_vis_path
 from textwrap import dedent
 import json
 
@@ -52,7 +52,8 @@ def code_writer(state: WeekendState):
         elif "to_datetime" in last_stderr:
             error_context += "\n\nCRITICAL: Do not use pd.to_datetime on duration columns. Use time_to_seconds() instead."
 
-    def build_header(paths_str: str, race_id: int, teams_focus: list, drivers_focus: list = None) -> str:
+    def build_header(paths_str: str, race_id: int, teams_focus: list, drivers_focus: list = None, 
+                      run_output_path: str = None, run_vis_path: str = None) -> str:
         """
         Provide ONLY imports, utilities, and configuration.
         The LLM will generate ALL data loading and processing code.
@@ -61,6 +62,11 @@ def code_writer(state: WeekendState):
         teams_list = teams_focus if teams_focus else []
         drivers_list = drivers_focus if drivers_focus else []
         missing_token = "\\N"
+        
+        # Use run-specific paths if provided, otherwise default
+        output_dir_str = f'Path("{run_output_path}")' if run_output_path else 'Path("outputs")'
+        vis_dir_str = f'Path("{run_vis_path}")' if run_vis_path else 'Path("analysis_vis")'
+        
         return dedent(
             f"""
             import os
@@ -102,10 +108,16 @@ def code_writer(state: WeekendState):
             # IMPORTANT: After merging results with constructors, use 'name' for team name, NOT 'name_constructor'
             # IMPORTANT: 'stop' column is ONLY in pits table - don't try to access it from results!
 
-            OUTPUT_DIR = Path("outputs")
-            VIS_DIR = Path("analysis_vis")
+            # Run-specific output directories
+            OUTPUT_DIR = {output_dir_str}
+            VIS_DIR = {vis_dir_str}
+            # Also keep backwards-compatible paths
+            OUTPUT_DIR_COMPAT = Path("outputs")
+            VIS_DIR_COMPAT = Path("analysis_vis")
             OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             VIS_DIR.mkdir(parents=True, exist_ok=True)
+            OUTPUT_DIR_COMPAT.mkdir(parents=True, exist_ok=True)
+            VIS_DIR_COMPAT.mkdir(parents=True, exist_ok=True)
 
             sns.set_theme(style="whitegrid")
 
@@ -413,8 +425,13 @@ Return ONLY Python code, no markdown backticks.
 
     code = fix_code(code)
 
+    # Get run-specific paths
+    run_output_path = str(get_run_output_path())
+    run_vis_path = str(get_run_vis_path())
+
     # Prepend the data paths definition to ensure the code runs
-    header = build_header(paths_str, race_id, teams_focus, drivers_focus)
+    header = build_header(paths_str, race_id, teams_focus, drivers_focus, 
+                          run_output_path=run_output_path, run_vis_path=run_vis_path)
     full_code = header + code
     
     # Execute

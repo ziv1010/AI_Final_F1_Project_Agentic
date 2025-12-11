@@ -12,7 +12,7 @@ Filters out factors that don't have statistical significance.
 
 from langchain_groq import ChatGroq
 from langchain_classic.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate
 from src.state import WeekendState
 from src.config import CONFIG
 from src.tools.token_tracker import track_llm_response, check_token_budget
@@ -36,16 +36,12 @@ except ImportError:
     PHASE2_ENABLED = False
 
 
-# Propensity Guardrail prompt
-PROPENSITY_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a statistical analyst validating factor causality.
+# Propensity Guardrail prompt - using standard ReAct PromptTemplate format for langchain_classic
+PROPENSITY_PROMPT = PromptTemplate.from_template("""You are a statistical analyst validating factor causality.
 Your job is to determine which proposed factors ACTUALLY affect the outcome.
 
-You have access to these statistical tools:
-1. **calculate_correlation**: Test linear/monotonic relationship (use first!)
-2. **calculate_feature_importance**: Rank factors by predictive power
-3. **run_statistical_test**: Test group differences (ANOVA, t-test, etc.)
-4. **calculate_propensity_score**: Estimate causal effect (advanced)
+You have access to these tools:
+{tools}
 
 **VALIDATION CRITERIA:**
 - Correlation: |r| > 0.3 AND p < 0.05 = SIGNIFICANT
@@ -67,20 +63,21 @@ You have access to these statistical tools:
 **PROPOSED FACTORS:**
 {proposed_factors}
 
-At the end, provide a JSON summary:
-```json
-{{
-  "validated_factors": [
-    {{"factor": "name", "test": "correlation", "statistic": 0.72, "p_value": 0.001, "significant": true}}
-  ],
-  "rejected_factors": [
-    {{"factor": "name", "reason": "p-value too high"}}
-  ]
-}}
-```"""),
-    ("human", "{input}"),
-    ("placeholder", "{agent_scratchpad}")
-])
+Use the following format:
+
+Question: the input question you must answer
+Thought: you should always think about what to do
+Action: the action to take, should be one of [{tool_names}]
+Action Input: the input to the action
+Observation: the result of the action
+... (this Thought/Action/Action Input/Observation can repeat N times)
+Thought: I now know the final answer
+Final Answer: JSON summary of validated and rejected factors
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}""")
 
 
 def propensity_guardrail(state: WeekendState) -> dict:
