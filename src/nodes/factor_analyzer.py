@@ -1,11 +1,13 @@
 """
-Intelligent Factor Analyzer Node
+Intelligent Factor Analyzer Node - Universal Version
 
 This node analyzes the user query to determine what factors are relevant to the analysis.
+Works with any racing domain (F1, MotoGP, IndyCar, etc.) without hardcoded logic.
+
 It thinks critically about:
-- What performance factors matter (tyres, weather, strategy, pace, reliability)
-- What comparisons should be made (driver vs driver, team vs team, stint vs stint)
-- What API data sources would be valuable
+- What performance factors matter based on available data
+- What comparisons should be made
+- What data sources would be valuable
 - What time-based analysis is needed
 
 This makes the agent autonomous and smart about data collection.
@@ -20,6 +22,52 @@ import json
 from typing import Dict, List, Any
 
 
+def _get_domain_context() -> str:
+    """Get domain-specific context for factor analysis."""
+    try:
+        from src.domain_config import get_domain_config
+        from src.tools.schema_detector import get_schema
+        from src.config import get_raw_data_path
+        
+        domain_config = get_domain_config()
+        schema = get_schema(get_raw_data_path())
+        
+        # Build context
+        lines = [
+            f"Domain: {domain_config.domain_name.upper()}",
+            f"Primary entity: {domain_config.primary_entity}",
+            f"Secondary entity: {domain_config.secondary_entity}",
+            "",
+            "Available data columns:"
+        ]
+        
+        # List relevant columns from schema
+        for table_name, table in list(schema.tables.items())[:5]:
+            numeric_cols = [col for col, info in table.columns.items() 
+                          if info.is_numeric and not info.is_id]
+            if numeric_cols:
+                lines.append(f"  {table_name}: {numeric_cols[:8]}")
+        
+        # Add potential factors based on detected columns
+        all_cols = []
+        for table in schema.tables.values():
+            all_cols.extend(table.columns.keys())
+        
+        potential_factors = [c for c in all_cols if any(
+            kw in c.lower() for kw in 
+            ["position", "time", "speed", "lap", "point", "grid", "pit", "stint"]
+        )]
+        
+        if potential_factors:
+            lines.append("")
+            lines.append(f"Potential performance factors: {list(set(potential_factors))[:15]}")
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        return f"Domain detection unavailable: {e}"
+
+
 def factor_analyzer(state: WeekendState) -> dict:
     """
     Analyzes the query to determine what factors and data sources are relevant.
@@ -29,6 +77,8 @@ def factor_analyzer(state: WeekendState) -> dict:
     2. Identifying performance factors that could affect the outcome
     3. Determining what data sources to fetch
     4. Planning comparisons and contrasts
+    
+    Works with any racing domain using detected schema.
     """
     print("\n=== [Factor Analyzer] Analyzing Query for Relevant Factors ===")
 
@@ -37,48 +87,50 @@ def factor_analyzer(state: WeekendState) -> dict:
         return _basic_factor_analysis(state)
 
     llm = ChatGroq(model=CONFIG["llm"]["model"], temperature=0.3)
+    
+    # Get domain context
+    domain_context = _get_domain_context()
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are an expert F1 strategist and data analyst. Analyze the user's query to determine what factors are relevant for a comprehensive analysis.
+        ("system", """You are an expert motorsport strategist and data analyst. 
+Analyze the user's query to determine what factors are relevant for a comprehensive analysis.
+
+**DOMAIN CONTEXT:**
+{domain_context}
 
 Think critically about:
 
 1. **Performance Factors** - What could have affected performance?
-   - Tire strategy (compounds, degradation, pit timing)
-   - Weather conditions (temperature, rain, wind)
-   - Track characteristics (overtaking opportunities, tire wear)
-   - Car setup and balance
+   - Race position and grid position
+   - Lap times and pace
+   - Strategy decisions (pit stops, tire/compound choices)
+   - Weather and track conditions
    - Reliability issues
-   - Driver form and racecraft
-   - Team strategy decisions
+   - Competitor form and skill
+   - Team/manufacturer factors
 
 2. **Data Sources Needed** - What data would help answer this?
-   - Lap times and sector times (pace analysis)
-   - Tire stints and compounds (strategy)
-   - Weather data (conditions impact)
-   - Pit stop timing and duration (strategy execution)
-   - Telemetry data (speed, throttle, brake, DRS usage)
-   - Race control messages (incidents, flags, safety cars)
-   - Radio communications (team strategy, driver feedback)
-   - Position changes over time (race dynamics)
+   - Results data (positions, points, times)
+   - Lap-by-lap data (if available)
+   - Qualifying data
+   - Pit stop data (if available)
+   - Weather data (if available)
 
 3. **Comparisons to Make** - What should be compared?
-   - Driver vs driver (same team or different)
-   - Team vs team (strategy differences)
-   - Stint vs stint (tire degradation)
-   - Qualifying vs race pace
-   - Expected vs actual performance
+   - Competitor vs competitor
+   - Team vs team
+   - Event vs event
+   - Season trends
 
-4. **Time-based Analysis** - When did things happen?
-   - Pit window timing
-   - Pace evolution during race
-   - Weather changes during session
-   - Incident timing and impact
+4. **Time-based Analysis** - What patterns to look for?
+   - Performance over race/event
+   - Season progression
+   - Historical comparison
 
 User Query: {query}
 
-Weekend Context: {weekend}
-Drivers Focus: {drivers_focus}
+Event Context: {event}
+Competitors Focus: {competitors_focus}
 Teams Focus: {teams_focus}
 Analysis Depth: {analysis_depth}
 
@@ -87,18 +139,15 @@ Return a JSON object with your analysis:
   "primary_question": "What is the user really asking?",
   "key_factors": ["list", "of", "important", "factors"],
   "data_sources_needed": {{
+    "results": true/false,
     "lap_times": true/false,
-    "tire_stints": true/false,
-    "weather": true/false,
-    "telemetry": true/false,
+    "qualifying": true/false,
     "pit_stops": true/false,
-    "race_control": true/false,
-    "radio": true/false,
-    "positions": true/false,
-    "intervals": true/false
+    "weather": true/false,
+    "standings": true/false
   }},
   "comparisons": [
-    {{"type": "driver|team|stint", "entities": ["A", "B"], "metric": "what to compare"}}
+    {{"type": "competitor|team|event", "entities": ["A", "B"], "metric": "what to compare"}}
   ],
   "time_windows": ["when to focus analysis"],
   "hypotheses": ["what might explain the results"],
@@ -113,8 +162,9 @@ Be specific and thoughtful. This will guide the entire analysis."""),
 
     response = chain.invoke({
         "query": state.get("user_query", ""),
-        "weekend": str(state.get("weekend_spec", {})),
-        "drivers_focus": state.get("drivers_focus", []),
+        "domain_context": domain_context,
+        "event": str(state.get("event_spec") or state.get("weekend_spec", {})),
+        "competitors_focus": state.get("competitors_focus", []) or state.get("drivers_focus", []),
         "teams_focus": state.get("teams_focus", []),
         "analysis_depth": state.get("analysis_depth", "basic")
     })
@@ -155,6 +205,7 @@ Be specific and thoughtful. This will guide the entire analysis."""),
 def _basic_factor_analysis(state: WeekendState) -> dict:
     """
     Fallback basic factor analysis when token budget is low or parsing fails.
+    Works with any racing domain.
     """
     query_lower = state.get("user_query", "").lower()
 
@@ -163,31 +214,33 @@ def _basic_factor_analysis(state: WeekendState) -> dict:
         "primary_question": state.get("user_query", ""),
         "key_factors": [],
         "data_sources_needed": {
-            "lap_times": True,  # Always useful
-            "tire_stints": "tire" in query_lower or "strategy" in query_lower or "pit" in query_lower,
-            "weather": "weather" in query_lower or "rain" in query_lower or "wet" in query_lower,
-            "telemetry": "speed" in query_lower or "pace" in query_lower or "fast" in query_lower,
+            "results": True,  # Always useful
+            "lap_times": "lap" in query_lower or "pace" in query_lower or "fast" in query_lower,
+            "qualifying": "qualifying" in query_lower or "quali" in query_lower or "grid" in query_lower,
             "pit_stops": "pit" in query_lower or "stop" in query_lower or "strategy" in query_lower,
-            "race_control": "incident" in query_lower or "crash" in query_lower or "flag" in query_lower,
-            "radio": "radio" in query_lower or "communication" in query_lower or "team" in query_lower,
-            "positions": "position" in query_lower or "overtake" in query_lower,
-            "intervals": "gap" in query_lower or "interval" in query_lower or "behind" in query_lower
+            "weather": "weather" in query_lower or "rain" in query_lower or "wet" in query_lower,
+            "standings": "championship" in query_lower or "standing" in query_lower or "point" in query_lower,
         },
         "comparisons": [],
-        "time_windows": ["entire race"],
+        "time_windows": ["entire event"],
         "hypotheses": ["Performance differences may be explained by strategy, pace, or conditions"],
         "analysis_approach": "Compare key metrics across entities"
     }
 
     # Add key factors based on keywords
-    if "tire" in query_lower or "tyre" in query_lower:
+    if any(kw in query_lower for kw in ["tire", "tyre", "compound"]):
         factor_analysis["key_factors"].append("tire_strategy")
-    if "weather" in query_lower or "rain" in query_lower:
+    if any(kw in query_lower for kw in ["weather", "rain", "wet", "dry"]):
         factor_analysis["key_factors"].append("weather_conditions")
-    if "pace" in query_lower or "fast" in query_lower:
+    if any(kw in query_lower for kw in ["pace", "fast", "speed", "quick"]):
         factor_analysis["key_factors"].append("lap_pace")
-    if "pit" in query_lower or "stop" in query_lower:
+    if any(kw in query_lower for kw in ["pit", "stop", "strategy"]):
         factor_analysis["key_factors"].append("pit_strategy")
+    if any(kw in query_lower for kw in ["crash", "incident", "accident"]):
+        factor_analysis["key_factors"].append("incidents")
+    if any(kw in query_lower for kw in ["start", "grid", "position"]):
+        factor_analysis["key_factors"].append("grid_position")
+        
     if not factor_analysis["key_factors"]:
         factor_analysis["key_factors"] = ["overall_performance", "strategy", "pace"]
 

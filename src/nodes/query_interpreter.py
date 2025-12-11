@@ -1,116 +1,171 @@
+"""
+Universal Query Interpreter for Racing Analytics.
+
+Interprets user queries to identify:
+- The racing event/weekend of interest
+- Competitors (drivers/riders) mentioned
+- Teams/constructors mentioned
+
+Uses dynamic entity extraction instead of hardcoded maps.
+Works with any racing domain (F1, MotoGP, IndyCar, etc.).
+"""
+
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
-from src.tools.data_tools import list_weekends
 from src.config import CONFIG
+from src.tools.token_tracker import track_llm_response
 import json
 import re
 import unicodedata
-from typing import List, Dict
-
-# Map driver codes/names to surnames (for database matching)
-DRIVER_NAME_MAP = {
-    # Common codes to surnames
-    "max": "Verstappen", "ver": "Verstappen", "verstappen": "Verstappen",
-    "lewis": "Hamilton", "ham": "Hamilton", "hamilton": "Hamilton",
-    "lando": "Norris", "nor": "Norris", "lan": "Norris", "norris": "Norris",
-    "charles": "Leclerc", "lec": "Leclerc", "leclerc": "Leclerc",
-    "carlos": "Sainz", "sai": "Sainz", "sainz": "Sainz",
-    "george": "Russell", "rus": "Russell", "russell": "Russell",
-    "sergio": "Perez", "per": "Perez", "perez": "Perez", "checo": "Perez",
-    "fernando": "Alonso", "alo": "Alonso", "alonso": "Alonso",
-    "lance": "Stroll", "str": "Stroll", "stroll": "Stroll",
-    "pierre": "Gasly", "gas": "Gasly", "gasly": "Gasly",
-    "esteban": "Ocon", "oco": "Ocon", "ocon": "Ocon",
-    "yuki": "Tsunoda", "tsu": "Tsunoda", "tsunoda": "Tsunoda",
-    "daniel": "Ricciardo", "ric": "Ricciardo", "ricciardo": "Ricciardo",
-    "kevin": "Magnussen", "mag": "Magnussen", "magnussen": "Magnussen",
-    "nico": "Hulkenberg", "hul": "Hulkenberg", "hulkenberg": "Hulkenberg",
-    "valtteri": "Bottas", "bot": "Bottas", "bottas": "Bottas",
-    "guanyu": "Zhou", "zho": "Zhou", "zhou": "Zhou",
-    "alexander": "Albon", "alb": "Albon", "albon": "Albon",
-    "logan": "Sargeant", "sar": "Sargeant", "sargeant": "Sargeant",
-    "oscar": "Piastri", "pia": "Piastri", "piastri": "Piastri",
-    "liam": "Lawson", "law": "Lawson", "lawson": "Lawson",
-    "franco": "Colapinto", "col": "Colapinto", "colapinto": "Colapinto",
-    "oliver": "Bearman", "bea": "Bearman", "bearman": "Bearman",
-    "jack": "Doohan", "doo": "Doohan", "doohan": "Doohan",
-}
-
-# Map common team name variations to their official database names
-TEAM_NAME_MAP = {
-    # Red Bull variations
-    "redbull": "Red Bull",
-    "redbulls": "Red Bull",
-    "red bull": "Red Bull",
-    "red bulls": "Red Bull",
-    "rb": "Red Bull",
-    "red bull racing": "Red Bull",
-    # McLaren variations
-    "mclaren": "McLaren",
-    "mclarens": "McLaren",
-    "mc laren": "McLaren",
-    # Ferrari variations
-    "ferrari": "Ferrari",
-    "ferrar": "Ferrari",
-    "ferarri": "Ferrari",
-    "scuderia ferrari": "Ferrari",
-    # Mercedes variations
-    "mercedes": "Mercedes",
-    "merc": "Mercedes",
-    "mercs": "Mercedes",
-    "mercedes-amg": "Mercedes",
-    # Alpine variations
-    "alpine": "Alpine F1 Team",
-    "alpine f1": "Alpine F1 Team",
-    # Aston Martin variations
-    "aston martin": "Aston Martin",
-    "astonmartin": "Aston Martin",
-    "aston": "Aston Martin",
-    # Williams
-    "williams": "Williams",
-    # Haas variations
-    "haas": "Haas F1 Team",
-    "haas f1": "Haas F1 Team",
-    # Sauber/Kick Sauber/Alfa Romeo
-    "sauber": "Sauber",
-    "kick sauber": "Sauber",
-    "alfa romeo": "Alfa Romeo",
-    # AlphaTauri / RB
-    "alphatauri": "AlphaTauri",
-    "alpha tauri": "AlphaTauri",
-    "rb f1": "RB F1 Team",
-    "visa rb": "RB F1 Team",
-    # Racing Point
-    "racing point": "Racing Point",
-    "racingpoint": "Racing Point",
-    # Toro Rosso
-    "toro rosso": "Toro Rosso",
-}
+from typing import List, Dict, Optional
 
 
 def _normalize(text: str) -> str:
+    """Lowercase and strip accents for matching."""
     text = str(text).lower()
     return "".join(
         c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
     )
 
 
-def _normalize_team_name(team: str) -> str:
-    """Normalize a team name to match the database format."""
-    normalized = team.strip().lower()
-    return TEAM_NAME_MAP.get(normalized, team)
+def _get_domain_config():
+    """Get domain configuration with entity information."""
+    try:
+        from src.domain_config import get_domain_config
+        return get_domain_config()
+    except Exception:
+        return None
 
 
-def _normalize_driver_name(driver: str) -> str:
-    """Normalize a driver name/code to surname for database matching."""
-    normalized = driver.strip().lower()
-    return DRIVER_NAME_MAP.get(normalized, driver.title())
+def _list_events(filter_str: Optional[str] = None) -> List[Dict]:
+    """
+    List racing events from the dataset.
+    Works with any racing domain.
+    """
+    from src.config import get_raw_data_path
+    import pandas as pd
+    
+    data_path = get_raw_data_path()
+    
+    # Try to detect domain and find appropriate files
+    try:
+        from src.domain_config import get_domain_config
+        domain_config = get_domain_config()
+        domain = domain_config.domain_name
+    except:
+        domain = "auto"
+    
+    events = []
+    
+    # Check for F1 races.csv
+    races_file = data_path / "races.csv"
+    if races_file.exists():
+        try:
+            df = pd.read_csv(races_file)
+            
+            # Try to merge with circuits if available
+            circuits_file = data_path / "circuits.csv"
+            if circuits_file.exists():
+                circuits = pd.read_csv(circuits_file)
+                df = df.merge(circuits, on="circuitId", how="left", suffixes=("", "_circuit"))
+            
+            # Build search string
+            search_cols = []
+            for col in ["year", "name", "name_circuit", "location", "country"]:
+                if col in df.columns:
+                    search_cols.append(col)
+            
+            if search_cols:
+                df["_search"] = df[search_cols].fillna("").astype(str).agg(" ".join, axis=1).apply(_normalize)
+            else:
+                df["_search"] = df.iloc[:, 0].astype(str).apply(_normalize)
+            
+            # Score and filter
+            if filter_str:
+                keywords = [_normalize(kw) for kw in str(filter_str).split() if kw.strip()]
+                df["_score"] = df["_search"].apply(lambda x: sum(1 for kw in keywords if kw in x))
+            else:
+                df["_score"] = 0
+            
+            # Sort by score and date
+            if "date" in df.columns:
+                df = df.sort_values(["_score", "date"], ascending=[False, False])
+            else:
+                df = df.sort_values("_score", ascending=False)
+            
+            # Build event list
+            for _, row in df.head(20).iterrows():
+                event = {
+                    "race_id": int(row.get("raceId", 0)) if "raceId" in row else None,
+                    "year": int(row.get("year", 0)) if "year" in row else None,
+                    "round": int(row.get("round", 0)) if "round" in row else None,
+                    "name": row.get("name", "Unknown"),
+                    "circuit": row.get("name_circuit", row.get("circuitId", "")),
+                    "country": row.get("country", ""),
+                    "location": row.get("location", ""),
+                    "date": str(row.get("date", "")),
+                    "score": int(row.get("_score", 0))
+                }
+                events.append(event)
+            
+            return events
+        except Exception as e:
+            print(f"[Query Interpreter] Error reading races.csv: {e}")
+    
+    # Check for MotoGP or other data
+    for csv_file in data_path.glob("*.csv"):
+        try:
+            df = pd.read_csv(csv_file, nrows=1000)
+            
+            # Check if this looks like event data
+            event_cols = [c for c in df.columns if any(
+                kw in c.lower() for kw in ["year", "race", "circuit", "event", "round", "gp"]
+            )]
+            
+            if event_cols:
+                # Build events from this file
+                group_cols = [c for c in event_cols if "year" in c.lower()]
+                if not group_cols:
+                    group_cols = event_cols[:1]
+                
+                name_col = next((c for c in df.columns if "circuit" in c.lower() or "name" in c.lower()), None)
+                year_col = next((c for c in df.columns if "year" in c.lower()), None)
+                
+                if name_col:
+                    unique_events = df[[year_col, name_col]].drop_duplicates() if year_col else df[[name_col]].drop_duplicates()
+                    
+                    for _, row in unique_events.head(20).iterrows():
+                        event = {
+                            "name": row[name_col] if name_col else "Unknown",
+                            "year": int(row[year_col]) if year_col and pd.notna(row[year_col]) else None,
+                            "source_file": csv_file.name
+                        }
+                        
+                        # Score against filter
+                        if filter_str:
+                            event_str = _normalize(str(row.values))
+                            event["score"] = sum(1 for kw in _normalize(filter_str).split() if kw in event_str)
+                        else:
+                            event["score"] = 0
+                        
+                        events.append(event)
+                
+                if events:
+                    events.sort(key=lambda x: x.get("score", 0), reverse=True)
+                    return events[:20]
+                    
+        except Exception:
+            continue
+    
+    return events
 
 
-def _pick_best_candidate(candidates: List[Dict], query: str):
+def _pick_best_candidate(candidates: List[Dict], query: str) -> Optional[Dict]:
+    """Pick the best matching event from candidates."""
     if not candidates:
         return None
+    
     normalized_query = _normalize(query)
     year_matches = re.findall(r"(19|20)\d{2}", query)
     year_matches = [int(y) for y in year_matches]
@@ -118,124 +173,155 @@ def _pick_best_candidate(candidates: List[Dict], query: str):
 
     best = None
     best_score = -1
+    
     for cand in candidates:
-        score = 0
-        cand_name = _normalize(cand.get("name", ""))
-        cand_circuit = _normalize(cand.get("circuit", ""))
-        cand_location = _normalize(cand.get("location", ""))
+        score = cand.get("score", 0)
+        
+        cand_name = _normalize(str(cand.get("name", "")))
+        cand_circuit = _normalize(str(cand.get("circuit", "")))
+        cand_location = _normalize(str(cand.get("location", "")))
         cand_year = cand.get("year")
 
         for kw in query_tokens:
-            if kw and (kw in cand_name or kw in cand_circuit or kw in cand_location):
-                score += 2
+            if kw and len(kw) > 2:
+                if kw in cand_name or kw in cand_circuit or kw in cand_location:
+                    score += 2
+        
         if cand_year in year_matches:
             score += 5
-        # Strong boost if the query explicitly contains the country or location name
-        cand_country = _normalize(cand.get("country", ""))
+        
+        cand_country = _normalize(str(cand.get("country", "")))
         if cand_country and cand_country in normalized_query:
             score += 4
-        if cand_location and cand_location in normalized_query:
-            score += 4
-        # prefer more recent dates when scores tie
+        
         if score > best_score or (
             score == best_score and cand_year and best and cand_year > best.get("year", 0)
         ):
             best = cand
             best_score = score
+    
     return best or candidates[0]
 
 
-def query_interpreter(state: WeekendState):
+def _extract_entities_with_llm(query: str, domain_config) -> Dict:
     """
-    Interprets the user query to identify the race weekend and any specific drivers or teams mentioned in the user's query.
-    Weekend selection is deterministic; the LLM is only used to pull driver/team mentions.
+    Use LLM to extract competitor and team names from query.
+    This is domain-agnostic - works with any racing series.
     """
     llm = ChatGroq(model=CONFIG["llm"]["model"], temperature=0)
-
-    # Step 1: get weekend candidates deterministically
-    weekend_candidates = list_weekends.invoke({"filter_str": state["user_query"]})
-    best = _pick_best_candidate(weekend_candidates, state["user_query"])
-
-    print(f"DEBUG [Query Interpreter] Candidates (top 5): {weekend_candidates[:5]}")
-    print(f"DEBUG [Query Interpreter] Chosen weekend: {best}")
-
-    if not best:
-        return {"errors": ["Could not identify race weekend from query."]}
-
-    # Step 2: extract driver/team focus only (avoid hallucinating weekend)
+    
+    # Build domain-specific prompt
+    if domain_config:
+        primary_entity = domain_config.primary_entity
+        secondary_entity = domain_config.secondary_entity
+        domain_name = domain_config.domain_name.upper()
+    else:
+        primary_entity = "competitor"
+        secondary_entity = "team"
+        domain_name = "racing"
+    
     focus_prompt = ChatPromptTemplate.from_messages([
-        ("system", """Extract the driver SURNAMES and team names explicitly mentioned in the query.
+        ("system", f"""You are analyzing a {domain_name} query.
+Extract the {primary_entity} names and {secondary_entity} names explicitly mentioned.
 
-IMPORTANT: Return driver SURNAMES (last names), not first names or codes.
-Examples:
-- "Verstappen" not "Max" or "VER"
-- "Hamilton" not "Lewis" or "HAM"
-- "Norris" not "Lando" or "NOR"
+IMPORTANT:
+- For {primary_entity}s, use their surname/family name (e.g., "Verstappen" not "Max")
+- For {secondary_entity}s, use official names (e.g., "Red Bull" not "RB")
+- Only extract names explicitly mentioned in the query
+- Do NOT invent or assume names
 
-Return ONLY valid JSON (no thinking, no explanation):
+Return ONLY valid JSON:
 {{
-  "drivers_focus": ["Surname1", "Surname2", ...],
-  "teams_focus": ["Team1", ...]
-}}
-
-Do NOT invent entries. Only extract names explicitly mentioned.
-"""),
+  "competitors_focus": ["Name1", "Name2"],
+  "teams_focus": ["Team1", "Team2"]
+}}"""),
         ("user", "{query}")
     ])
-    focus_chain = focus_prompt | llm
-    focus_raw = focus_chain.invoke({"query": state["user_query"]}).content
-
-    print(f"DEBUG [Query Interpreter] Focus Output: {focus_raw}")
-
+    
     try:
-        content = focus_raw
-
-        # Handle <think> tags that some models output
+        chain = focus_prompt | llm
+        response = chain.invoke({"query": query})
+        content = response.content
+        
+        # Track tokens
+        track_llm_response(response)
+        
+        # Handle <think> tags
         if "<think>" in content:
-            # Extract content after </think> tag
             if "</think>" in content:
                 content = content.split("</think>")[-1]
             else:
-                # No closing tag, try to find JSON after think block
                 content = content.split("<think>")[-1]
-
+        
         # Handle markdown code blocks
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0]
         elif "```" in content:
             content = content.split("```")[1].split("```")[0]
-
-        # Try to find JSON object in the content
+        
+        # Find JSON
         json_match = re.search(r'\{[^{}]*\}', content, re.DOTALL)
         if json_match:
             content = json_match.group(0)
-
-        focus_data = json.loads(content.strip())
-        drivers_focus = focus_data.get("drivers_focus", [])
-        teams_focus = focus_data.get("teams_focus", [])
-
-        # Normalize driver names to surnames for database matching
-        drivers_focus = [_normalize_driver_name(driver) for driver in drivers_focus]
-
-        # Normalize team names to match database format
-        teams_focus = [_normalize_team_name(team) for team in teams_focus]
-
-        print(f"DEBUG [Query Interpreter] Normalized drivers: {drivers_focus}")
-
+        
+        data = json.loads(content.strip())
+        
+        return {
+            "competitors_focus": data.get("competitors_focus", []),
+            "teams_focus": data.get("teams_focus", [])
+        }
+        
     except Exception as e:
-        print(f"DEBUG [Query Interpreter] JSON parsing error: {e}")
-        # Fallback: try to extract driver names directly from query
-        drivers_focus = []
-        query_lower = state["user_query"].lower()
-        for key, surname in DRIVER_NAME_MAP.items():
-            if key in query_lower and surname not in drivers_focus:
-                drivers_focus.append(surname)
-        teams_focus = []
-        print(f"DEBUG [Query Interpreter] Fallback extraction: {drivers_focus}")
+        print(f"[Query Interpreter] Entity extraction error: {e}")
+        return {"competitors_focus": [], "teams_focus": []}
 
+
+def query_interpreter(state: WeekendState) -> dict:
+    """
+    Interprets the user query to identify:
+    - The racing event of interest
+    - Competitors (drivers/riders) mentioned
+    - Teams/constructors mentioned
+    
+    This is domain-agnostic and works with any racing dataset.
+    """
+    print("\n=== [Query Interpreter] Processing Query ===")
+    
+    user_query = state.get("user_query", "")
+    print(f"[Query Interpreter] Query: {user_query}")
+    
+    # Get domain configuration
+    domain_config = _get_domain_config()
+    if domain_config:
+        print(f"[Query Interpreter] Detected domain: {domain_config.domain_name}")
+    
+    # Step 1: Find matching events
+    event_candidates = _list_events(user_query)
+    best_event = _pick_best_candidate(event_candidates, user_query)
+
+    print(f"[Query Interpreter] Candidates (top 5): {event_candidates[:5]}")
+    print(f"[Query Interpreter] Chosen event: {best_event}")
+
+    if not best_event:
+        return {"errors": ["Could not identify racing event from query."]}
+
+    # Step 2: Extract competitor/team focus using LLM
+    entities = _extract_entities_with_llm(user_query, domain_config)
+    competitors_focus = entities.get("competitors_focus", [])
+    teams_focus = entities.get("teams_focus", [])
+    
+    print(f"[Query Interpreter] Competitors: {competitors_focus}")
+    print(f"[Query Interpreter] Teams: {teams_focus}")
+
+    # Return results
     return {
-        "weekend_spec": best,
-        "drivers_focus": drivers_focus,
-        "teams_focus": teams_focus
+        # Universal fields
+        "event_spec": best_event,
+        "competitors_focus": competitors_focus,
+        "teams_focus": teams_focus,
+        "domain": domain_config.domain_name if domain_config else "auto",
+        
+        # Backwards compatibility (deprecated)
+        "weekend_spec": best_event,
+        "drivers_focus": competitors_focus,
     }
-

@@ -1,12 +1,14 @@
 """
-LangGraph Workflow Definition for F1 Weekend Strategy Analyst.
+LangGraph Workflow Definition for Universal Racing Analytics.
 
-This graph supports three analysis modes:
-1. BASIC: Dataset analysis only (original flow)
-2. DEEP: Dataset + OpenF1 API data (weather, telemetry, etc.)
-3. STORY: Full narrative synthesis with storytelling
+This graph supports:
+1. Universal domain detection (F1, MotoGP, IndyCar, etc.)
+2. EDA Agent for data exploration
+3. Web Search Agent for external context
+4. Propensity Guardrail for factor validation
+5. ReAct-based code execution
 
-The flow is determined by the `analysis_depth` state field.
+All agents use tool calling - no hardcoded logic.
 """
 
 from langgraph.graph import StateGraph, END
@@ -25,6 +27,11 @@ from src.nodes.deep_visualizer import deep_visualizer
 from src.nodes.deep_report_generator import deep_report_generator
 from src.nodes.storyteller import storyteller
 from src.tools.token_tracker import is_limit_exceeded
+
+# Import new agents
+from src.nodes.eda_agent import eda_agent
+from src.nodes.web_search_agent import web_search_agent
+from src.nodes.propensity_guardrail import propensity_guardrail
 
 
 def build_graph():
@@ -93,129 +100,31 @@ def build_graph():
     return workflow.compile()
 
 
-def build_deep_analysis_graph():
+def build_react_graph():
     """
-    Build the deep analysis graph with API integration and intelligent factor analysis.
+    Build the full ReAct-based analysis graph with new agents.
 
+    This is the recommended graph featuring:
+    - EDA Agent for data exploration
+    - Web Search Agent for external context
+    - Propensity Guardrail for factor validation
+    - All agents use tool calling
+    
     Flow:
-    query_interpreter -> query_validator -> factor_analyzer -> data_loader -> analysis_planner -> plan_reviewer
-    -> code_writer -> report_generator -> deep_analysis_fetcher -> storyteller -> END
+    query_interpreter -> query_validator -> eda_agent -> factor_analyzer 
+    -> web_search_agent -> data_loader -> propensity_guardrail 
+    -> analysis_planner -> plan_reviewer -> code_writer -> report_generator
     """
     workflow = StateGraph(WeekendState)
 
-    # Add all nodes (basic + deep)
+    # Add all nodes including new agents
     workflow.add_node("query_interpreter", query_interpreter)
     workflow.add_node("query_validator", query_validator)
+    workflow.add_node("eda_agent", eda_agent)  # NEW
     workflow.add_node("factor_analyzer", factor_analyzer)
+    workflow.add_node("web_search_agent", web_search_agent)  # NEW
     workflow.add_node("data_loader", data_loader)
-    workflow.add_node("analysis_planner", analysis_planner)
-    workflow.add_node("plan_reviewer", plan_reviewer)
-    workflow.add_node("code_writer", code_writer)
-    workflow.add_node("code_debugger", code_debugger)
-    workflow.add_node("report_generator", report_generator)
-    workflow.add_node("deep_analysis_fetcher", deep_analysis_fetcher)
-    workflow.add_node("storyteller", storyteller)
-
-    # Define edges
-    workflow.set_entry_point("query_interpreter")
-
-    workflow.add_edge("query_interpreter", "query_validator")
-    workflow.add_edge("query_validator", "factor_analyzer")
-    workflow.add_edge("factor_analyzer", "data_loader")
-    workflow.add_edge("data_loader", "analysis_planner")
-    workflow.add_edge("analysis_planner", "plan_reviewer")
-    workflow.add_edge("plan_reviewer", "code_writer")
-
-    # Conditional edge for code writer (retry with debugging on error)
-    def check_code_execution(state):
-        errors = state.get("errors", [])
-        attempts = len(state.get("code_snippets", []))
-
-        if errors and attempts < 5:
-            print(f"DEBUG [Graph] Code execution failed (Attempt {attempts})")
-
-            if attempts >= 2 and attempts <= 4:
-                print(f"DEBUG [Graph] Routing to code_debugger for intelligent fix")
-                import time
-                time.sleep(1)
-                return "code_debugger"
-            else:
-                print(f"DEBUG [Graph] Retrying code_writer with error context")
-                import time
-                time.sleep(2)
-                return "code_writer"
-
-        return "report_generator"
-
-    workflow.add_conditional_edges(
-        "code_writer",
-        check_code_execution,
-        {
-            "code_writer": "code_writer",
-            "code_debugger": "code_debugger",
-            "report_generator": "report_generator"
-        }
-    )
-
-    workflow.add_edge("code_debugger", "code_writer")
-
-    # After basic report, continue to deep analysis
-    workflow.add_edge("report_generator", "deep_analysis_fetcher")
-
-    # After fetching API data, check if we should do storytelling
-    def check_deep_analysis_result(state):
-        # Check token limit
-        if state.get("token_limit_exceeded") or is_limit_exceeded():
-            print("[Graph] Token limit exceeded, ending without storytelling")
-            return END
-
-        # Check if API data was successfully fetched
-        api_data = state.get("api_data", {})
-        if api_data.get("error"):
-            print(f"[Graph] API data fetch failed: {api_data.get('error')}, skipping storyteller")
-            return END
-
-        # Check analysis depth
-        depth = state.get("analysis_depth", "deep")
-        if depth == "story":
-            return "storyteller"
-
-        return END
-
-    workflow.add_conditional_edges(
-        "deep_analysis_fetcher",
-        check_deep_analysis_result,
-        {
-            "storyteller": "storyteller",
-            END: END
-        }
-    )
-
-    workflow.add_edge("storyteller", END)
-
-    return workflow.compile()
-
-
-def build_flexible_graph():
-    """
-    Build a flexible graph where the agent decides the analysis depth.
-
-    The flow adapts based on:
-    1. analysis_depth setting (basic/deep/story)
-    2. Token budget remaining
-    3. API data availability
-    4. User's explicit request for deep/story analysis
-    5. Intelligent factor analysis to determine what data sources are needed
-
-    This is the recommended graph for production use.
-    """
-    workflow = StateGraph(WeekendState)
-
-    # Add all nodes
-    workflow.add_node("query_interpreter", query_interpreter)
-    workflow.add_node("query_validator", query_validator)
-    workflow.add_node("factor_analyzer", factor_analyzer)
-    workflow.add_node("data_loader", data_loader)
+    workflow.add_node("propensity_guardrail", propensity_guardrail)  # NEW
     workflow.add_node("analysis_planner", analysis_planner)
     workflow.add_node("plan_reviewer", plan_reviewer)
     workflow.add_node("code_writer", code_writer)
@@ -229,11 +138,36 @@ def build_flexible_graph():
     # Entry
     workflow.set_entry_point("query_interpreter")
 
-    # Standard flow with query validation
+    # Query understanding
     workflow.add_edge("query_interpreter", "query_validator")
-    workflow.add_edge("query_validator", "factor_analyzer")
-    workflow.add_edge("factor_analyzer", "data_loader")
-    workflow.add_edge("data_loader", "analysis_planner")
+    workflow.add_edge("query_validator", "eda_agent")
+    
+    # EDA agent can branch for pure EDA queries
+    def route_after_eda(state):
+        query = state.get("user_query", "").lower()
+        
+        # If purely EDA request, end here
+        eda_only_keywords = ["show data", "what columns", "describe dataset", "list tables"]
+        if any(kw in query for kw in eda_only_keywords):
+            print("[Graph] Pure EDA query - ending after EDA agent")
+            return END
+        
+        return "factor_analyzer"
+
+    workflow.add_conditional_edges("eda_agent", route_after_eda, {
+        "factor_analyzer": "factor_analyzer",
+        END: END
+    })
+
+    # Factor analysis -> Web search -> Data loading
+    workflow.add_edge("factor_analyzer", "web_search_agent")
+    workflow.add_edge("web_search_agent", "data_loader")
+    
+    # Data loading -> Propensity validation
+    workflow.add_edge("data_loader", "propensity_guardrail")
+    workflow.add_edge("propensity_guardrail", "analysis_planner")
+    
+    # Planning and execution
     workflow.add_edge("analysis_planner", "plan_reviewer")
     workflow.add_edge("plan_reviewer", "code_writer")
 
@@ -334,6 +268,24 @@ def build_flexible_graph():
     return workflow.compile()
 
 
+def build_flexible_graph():
+    """
+    Build a flexible graph that adapts based on analysis needs.
+    
+    This is an alias for build_react_graph() for backwards compatibility.
+    """
+    return build_react_graph()
+
+
+def build_deep_analysis_graph():
+    """
+    Build the deep analysis graph with all features.
+    
+    This is an alias for build_react_graph() for backwards compatibility.
+    """
+    return build_react_graph()
+
+
 # Default graph for backwards compatibility
 def get_default_graph():
     """Get the default graph (basic analysis)."""
@@ -350,9 +302,6 @@ def get_graph_for_depth(depth: str = "basic"):
     Returns:
         Compiled LangGraph workflow
     """
-    if depth == "basic":
-        return build_graph()
-    elif depth in ("deep", "story"):
-        return build_flexible_graph()
-    else:
-        return build_graph()
+    # Always use the ReAct graph for better analysis
+    # The graph internally handles depth-based routing
+    return build_react_graph()

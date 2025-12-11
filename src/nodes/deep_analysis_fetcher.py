@@ -2,19 +2,16 @@
 Deep Analysis Fetcher Node
 
 This node is triggered when the user requests "further analysis" or "deep dive".
-It fetches real-time/historical data from the OpenF1 API to enrich the analysis
-with telemetry, weather, race control events, and other live data.
+It fetches historical data and enriches the analysis with additional context.
+
+NOTE: OpenF1 API integration has been disabled due to stability issues.
+The node now relies on FastF1 and local data sources only.
 """
 
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from src.state import WeekendState
 from src.config import CONFIG, get_outputs_path
-from src.tools.openf1_tools import (
-    fetch_comprehensive_session_data,
-    summarize_api_data,
-    get_openf1_session
-)
 from src.tools.token_tracker import (
     track_llm_response,
     is_limit_exceeded,
@@ -25,7 +22,7 @@ from src.tools.token_tracker import (
 import json
 
 
-# Map common country name variations to OpenF1 expected names
+# Map common country name variations to expected names
 COUNTRY_NAME_MAP = {
     "bahrain": "Bahrain",
     "saudi arabia": "Saudi Arabia",
@@ -89,44 +86,24 @@ def _normalize_country(weekend_spec: dict) -> str:
     return weekend_spec.get("country", "Unknown")
 
 
-def _get_driver_numbers(drivers_focus: list, drivers_data: list) -> list:
-    """Map driver names/refs to driver numbers."""
-    if not drivers_focus or not drivers_data:
-        return []
-
-    numbers = []
-    focus_lower = [d.lower() for d in drivers_focus]
-
-    for driver in drivers_data:
-        full_name = driver.get("full_name", "").lower()
-        name_acronym = driver.get("name_acronym", "").lower()
-        driver_number = driver.get("driver_number")
-
-        for focus in focus_lower:
-            if focus in full_name or focus == name_acronym or focus in name_acronym:
-                if driver_number and driver_number not in numbers:
-                    numbers.append(driver_number)
-                break
-
-    return numbers
-
-
 def deep_analysis_fetcher(state: WeekendState) -> dict:
     """
-    Fetch detailed data from OpenF1 API for deep analysis.
+    Fetch detailed data for deep analysis.
 
     This node:
     1. Checks if we have token budget for API processing
-    2. Maps the weekend spec to OpenF1 API parameters
-    3. Fetches weather, telemetry, race control, stints, etc.
-    4. Uses LLM to summarize and contextualize the API data
+    2. Maps the weekend spec to analysis parameters
+    3. Fetches FastF1 telemetry data if available
+    4. Uses LLM to summarize and contextualize the data
     5. Returns enriched state for the storyteller node
+    
+    NOTE: OpenF1 API has been disabled due to stability issues.
     """
-    print("\n=== [Deep Analysis Fetcher] Starting API Data Retrieval ===")
+    print("\n=== [Deep Analysis Fetcher] Starting Data Retrieval ===")
 
     # Check token budget first
     if is_limit_exceeded():
-        print("[Deep Analysis Fetcher] Token limit exceeded, skipping API analysis")
+        print("[Deep Analysis Fetcher] Token limit exceeded, skipping deep analysis")
         return {
             "api_data": {"error": "Token limit exceeded"},
             "api_data_summary": "Analysis limited due to token budget constraints.",
@@ -137,7 +114,7 @@ def deep_analysis_fetcher(state: WeekendState) -> dict:
     if not weekend_spec:
         return {
             "api_data": {"error": "No weekend specified"},
-            "api_data_summary": "Could not fetch API data - no race weekend identified.",
+            "api_data_summary": "Could not fetch data - no race weekend identified.",
             "errors": state.get("errors", []) + ["No weekend_spec available for deep analysis"]
         }
 
@@ -147,103 +124,107 @@ def deep_analysis_fetcher(state: WeekendState) -> dict:
 
     print(f"[Deep Analysis Fetcher] Looking up: {year} {country}")
 
-    # OpenF1 data is mainly available from 2023 onwards
-    if year and year < 2023:
-        print(f"[Deep Analysis Fetcher] Year {year} predates OpenF1 data (2023+)")
-        return {
-            "api_data": {"error": f"OpenF1 data not available for {year} (requires 2023+)"},
-            "api_data_summary": f"Real-time API data is only available for 2023 onwards. The {year} season predates the OpenF1 API coverage. Analysis will continue with historical Kaggle data only.",
-            "errors": []
-        }
+    # Initialize data containers
+    api_data = {}
+    api_summary = ""
+    fastf1_data = None
+    fastf1_summary = ""
 
-    # Fetch comprehensive session data
-    try:
-        # Get session first to get driver list
-        session = get_openf1_session.invoke({
-            "year": year,
-            "country": country,
-            "session_type": "Race"
-        })
+    # Fetch FastF1 data if available (2018+)
+    if year and year >= 2018:
+        print(f"[Deep Analysis Fetcher] Fetching FastF1 telemetry data...")
+        try:
+            from src.tools.fastf1_tools import get_comprehensive_analysis, summarize_fastf1_data
 
-        if not session:
-            # Try qualifying if race not found
-            session = get_openf1_session.invoke({
-                "year": year,
-                "country": country,
-                "session_type": "Qualifying"
-            })
+            # Get driver focus
+            drivers_focus = state.get("drivers_focus", [])
 
-        if not session:
-            return {
-                "api_data": {"error": f"Session not found for {year} {country}"},
-                "api_data_summary": f"Could not find OpenF1 session data for {year} {country}. The race may not be in the API database yet.",
-                "errors": []
-            }
+            # Map driver names to FastF1 abbreviations
+            driver_abbrevs = None
+            if drivers_focus:
+                # Common driver name to abbreviation mapping
+                name_to_abbrev = {
+                    "verstappen": "VER", "hamilton": "HAM", "norris": "NOR",
+                    "leclerc": "LEC", "sainz": "SAI", "russell": "RUS",
+                    "perez": "PER", "alonso": "ALO", "stroll": "STR",
+                    "gasly": "GAS", "ocon": "OCO", "tsunoda": "TSU",
+                    "ricciardo": "RIC", "magnussen": "MAG", "hulkenberg": "HUL",
+                    "bottas": "BOT", "zhou": "ZHO", "albon": "ALB",
+                    "sargeant": "SAR", "piastri": "PIA", "lawson": "LAW",
+                    "colapinto": "COL", "bearman": "BEA", "doohan": "DOO",
+                    "max": "VER", "lewis": "HAM", "lando": "NOR",
+                    "charles": "LEC", "carlos": "SAI", "george": "RUS",
+                    "sergio": "PER", "fernando": "ALO", "lance": "STR",
+                    "pierre": "GAS", "esteban": "OCO", "yuki": "TSU",
+                    "daniel": "RIC", "kevin": "MAG", "nico": "HUL",
+                    "valtteri": "BOT", "guanyu": "ZHO", "alexander": "ALB",
+                    "logan": "SAR", "oscar": "PIA", "liam": "LAW",
+                    "franco": "COL", "oliver": "BEA", "jack": "DOO"
+                }
+                driver_abbrevs = []
+                for name in drivers_focus:
+                    name_lower = name.lower().strip()
+                    if name_lower in name_to_abbrev:
+                        driver_abbrevs.append(name_to_abbrev[name_lower])
+                    elif len(name) == 3:
+                        # Already an abbreviation
+                        driver_abbrevs.append(name.upper())
 
-        # Get driver numbers for focused drivers
-        drivers_focus = state.get("drivers_focus", [])
-        driver_numbers = None
+            print(f"[Deep Analysis Fetcher] FastF1 driver abbreviations: {driver_abbrevs}")
 
-        if drivers_focus:
-            from src.tools.openf1_tools import get_openf1_drivers
-            drivers_data = get_openf1_drivers.invoke({"session_key": session["session_key"]})
-            driver_numbers = _get_driver_numbers(drivers_focus, drivers_data)
-            print(f"[Deep Analysis Fetcher] Focused drivers mapped to numbers: {driver_numbers}")
+            # Fetch FastF1 data
+            fastf1_data = get_comprehensive_analysis(
+                year=year,
+                race_name=country,
+                drivers=driver_abbrevs if driver_abbrevs else None
+            )
 
-        # Get factor analysis to intelligently determine what data to fetch
-        factor_analysis = state.get("analysis_outputs", {}).get("factor_analysis", {})
-        data_sources_needed = factor_analysis.get("data_sources_needed", {})
+            # Summarize FastF1 data
+            fastf1_summary = summarize_fastf1_data(fastf1_data)
+            api_summary = fastf1_summary
 
-        # Determine what data to fetch based on intelligent factor analysis
-        include_radio = data_sources_needed.get("radio", True)  # Default to True
-        include_location = data_sources_needed.get("positions", False)  # Default to False (large dataset)
+            print(f"[Deep Analysis Fetcher] FastF1 data fetched successfully")
 
-        print(f"[Deep Analysis Fetcher] Intelligent data source selection:")
-        print(f"  - Radio communications: {include_radio}")
-        print(f"  - GPS location data: {include_location}")
+        except Exception as f1_error:
+            print(f"[Deep Analysis Fetcher] FastF1 fetch failed: {f1_error}")
+            fastf1_summary = f"FastF1 data unavailable: {str(f1_error)}"
+            api_summary = fastf1_summary
 
-        # Fetch all data with intelligent selection
-        api_data = fetch_comprehensive_session_data(
-            year=year,
-            country=country,
-            session_type="Race",
-            driver_numbers=driver_numbers,
-            include_radio=include_radio,
-            include_location=include_location
-        )
+    else:
+        fastf1_summary = f"FastF1 data not available for {year} (requires 2018+)"
+        api_summary = fastf1_summary
 
-        # Generate summary
-        api_summary = summarize_api_data(api_data)
-
-        # Use LLM to create insights from API data
-        if check_token_budget(2000):  # Estimate ~2000 tokens for this call
+    # Use LLM to create insights if we have data
+    enriched_summary = api_summary
+    if api_summary and check_token_budget(2000):
+        try:
             llm = ChatGroq(model=CONFIG["llm"]["model"], temperature=0.2)
 
             prompt = ChatPromptTemplate.from_messages([
-                ("system", """You are an F1 technical analyst. Analyze the real-time API data below and extract key insights.
+                ("system", """You are an F1 technical analyst. Analyze the data below and extract key insights.
 
 **CRITICAL RULES:**
-1. ONLY report information that appears in the API Data Summary below.
+1. ONLY report information that appears in the Data Summary below.
 2. DO NOT make up or assume any data not present in the summary.
 3. If certain data is not available, say "data not available".
 4. Quote specific values exactly as they appear.
 
 Focus on (if data is available):
-1. Weather conditions (temperatures, rainfall)
+1. Lap time analysis and pace comparisons
 2. Tire strategy patterns (compounds used)
-3. Race incidents and flags
-4. Pit stop information
+3. Sector performance comparisons
+4. Speed trap data
 
 User Query: {query}
 
-API Data Summary (ONLY USE THIS DATA):
+Data Summary (ONLY USE THIS DATA):
 {api_summary}
 
 Previous Analysis (from dataset):
 {previous_analysis}
 
-Provide insights based ONLY on the data above. Do not add information not present in the API data."""),
-                ("user", "What insights can you extract from this API data? Only use information present in the data above.")
+Provide insights based ONLY on the data above. Do not add information not present in the data."""),
+                ("user", "What insights can you extract from this data? Only use information present in the data above.")
             ])
 
             chain = prompt | llm
@@ -264,131 +245,44 @@ Provide insights based ONLY on the data above. Do not add information not presen
             print(f"[Deep Analysis Fetcher] LLM tokens used: {usage}")
 
             enriched_summary = f"{api_summary}\n\n## Additional Insights\n{response.content}"
-        else:
+        except Exception as llm_error:
+            print(f"[Deep Analysis Fetcher] LLM enrichment failed: {llm_error}")
             enriched_summary = api_summary
-            print("[Deep Analysis Fetcher] Skipping LLM enrichment due to token budget")
+    else:
+        print("[Deep Analysis Fetcher] Skipping LLM enrichment due to token budget or no data")
 
-        print(f"[Deep Analysis Fetcher] Successfully fetched OpenF1 API data for {year} {country}")
+    print(get_usage_summary())
 
-        # Fetch FastF1 data if available (2018+)
-        fastf1_data = None
-        fastf1_summary = ""
+    # Persist deep analysis outputs
+    outputs_path = get_outputs_path()
+    outputs_path.mkdir(parents=True, exist_ok=True)
 
-        if year >= 2018:
-            print(f"[Deep Analysis Fetcher] Fetching FastF1 telemetry data...")
-            try:
-                from src.tools.fastf1_tools import get_comprehensive_analysis, summarize_fastf1_data
+    base_report_path = outputs_path / "race_report.md"
+    deep_report_path = outputs_path / "race_report_deep.md"
+    deep_summary_path = outputs_path / "deep_analysis_summary.md"
 
-                # Map driver names to FastF1 abbreviations
-                driver_abbrevs = None
-                drivers_focus = state.get("drivers_focus", [])
+    try:
+        base_report = base_report_path.read_text()
+    except Exception:
+        base_report = ""
 
-                if driver_numbers:
-                    # Try to map from OpenF1 drivers data
-                    drivers_list = api_data.get("drivers", [])
-                    driver_abbrevs = []
-                    for dn in driver_numbers:
-                        for d in drivers_list:
-                            if d.get("driver_number") == dn:
-                                # Use name_acronym if available
-                                abbrev = d.get("name_acronym")
-                                if abbrev:
-                                    driver_abbrevs.append(abbrev)
-                                break
+    deep_report = f"{base_report}\n\n---\n\n## Deep Analysis Addendum\n\n{enriched_summary}"
+    with open(deep_report_path, "w") as f:
+        f.write(deep_report)
 
-                # Fallback: Try to map driver names directly to common abbreviations
-                # Note: driver_abbrevs could be [] (empty list) if OpenF1 mapping failed
-                if (not driver_abbrevs or len(driver_abbrevs) == 0) and drivers_focus:
-                    print(f"[Deep Analysis Fetcher] Driver number mapping failed, trying direct name mapping for: {drivers_focus}")
-                    # Common driver name to abbreviation mapping
-                    name_to_abbrev = {
-                        "verstappen": "VER", "hamilton": "HAM", "norris": "NOR",
-                        "leclerc": "LEC", "sainz": "SAI", "russell": "RUS",
-                        "perez": "PER", "alonso": "ALO", "stroll": "STR",
-                        "gasly": "GAS", "ocon": "OCO", "tsunoda": "TSU",
-                        "ricciardo": "RIC", "magnussen": "MAG", "hulkenberg": "HUL",
-                        "bottas": "BOT", "zhou": "ZHO", "albon": "ALB",
-                        "sargeant": "SAR", "piastri": "PIA", "lawson": "LAW",
-                        "colapinto": "COL", "bearman": "BEA", "doohan": "DOO",
-                        "max": "VER", "lewis": "HAM", "lando": "NOR",
-                        "charles": "LEC", "carlos": "SAI", "george": "RUS",
-                        "sergio": "PER", "fernando": "ALO", "lance": "STR",
-                        "pierre": "GAS", "esteban": "OCO", "yuki": "TSU",
-                        "daniel": "RIC", "kevin": "MAG", "nico": "HUL",
-                        "valtteri": "BOT", "guanyu": "ZHO", "alexander": "ALB",
-                        "logan": "SAR", "oscar": "PIA", "liam": "LAW",
-                        "franco": "COL", "oliver": "BEA", "jack": "DOO"
-                    }
-                    driver_abbrevs = []
-                    for name in drivers_focus:
-                        name_lower = name.lower().strip()
-                        if name_lower in name_to_abbrev:
-                            driver_abbrevs.append(name_to_abbrev[name_lower])
-                        elif len(name) == 3:
-                            # Already an abbreviation
-                            driver_abbrevs.append(name.upper())
+    with open(deep_summary_path, "w") as f:
+        f.write("## Deep Analysis Summary\n\n" + enriched_summary)
 
-                print(f"[Deep Analysis Fetcher] FastF1 driver abbreviations: {driver_abbrevs}")
-
-                # Fetch FastF1 data
-                fastf1_data = get_comprehensive_analysis(
-                    year=year,
-                    race_name=country,
-                    drivers=driver_abbrevs if driver_abbrevs else None
-                )
-
-                # Summarize FastF1 data
-                fastf1_summary = summarize_fastf1_data(fastf1_data)
-
-                print(f"[Deep Analysis Fetcher] FastF1 data fetched successfully")
-
-            except Exception as f1_error:
-                print(f"[Deep Analysis Fetcher] FastF1 fetch failed (continuing without it): {f1_error}")
-                fastf1_summary = f"FastF1 data unavailable: {str(f1_error)}"
-
-        else:
-            fastf1_summary = f"FastF1 data not available for {year} (requires 2018+)"
-
-        print(get_usage_summary())
-
-        # Persist deep analysis outputs so users can compare basic vs deep
-        outputs_path = get_outputs_path()
-        outputs_path.mkdir(parents=True, exist_ok=True)
-
-        base_report_path = outputs_path / "race_report.md"
-        deep_report_path = outputs_path / "race_report_deep.md"
-        deep_summary_path = outputs_path / "deep_analysis_summary.md"
-
-        try:
-            base_report = base_report_path.read_text()
-        except Exception:
-            base_report = ""
-
-        deep_report = f"{base_report}\n\n---\n\n## Deep Analysis Addendum\n\n{enriched_summary}"
-        with open(deep_report_path, "w") as f:
-            f.write(deep_report)
-
-        with open(deep_summary_path, "w") as f:
-            f.write("## Deep Analysis Summary\n\n" + enriched_summary)
-
-        return {
-            "api_data": api_data,
-            "api_data_summary": enriched_summary,
-            "analysis_outputs": {
-                **state.get("analysis_outputs", {}),
-                "deep_report_path": str(deep_report_path),
-                "deep_summary_path": str(deep_summary_path),
-                "fastf1_data": fastf1_data,
-                "fastf1_summary": fastf1_summary
-            },
-            "token_usage": state.get("token_usage", {}),
-            "errors": []
-        }
-
-    except Exception as e:
-        print(f"[Deep Analysis Fetcher] Error fetching API data: {e}")
-        return {
-            "api_data": {"error": str(e)},
-            "api_data_summary": f"Error fetching real-time data: {str(e)}",
-            "errors": state.get("errors", []) + [f"API fetch error: {str(e)}"]
-        }
+    return {
+        "api_data": api_data,
+        "api_data_summary": enriched_summary,
+        "analysis_outputs": {
+            **state.get("analysis_outputs", {}),
+            "deep_report_path": str(deep_report_path),
+            "deep_summary_path": str(deep_summary_path),
+            "fastf1_data": fastf1_data,
+            "fastf1_summary": fastf1_summary
+        },
+        "token_usage": state.get("token_usage", {}),
+        "errors": []
+    }
